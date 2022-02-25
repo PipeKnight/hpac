@@ -91,26 +91,24 @@ class ModelHP(object):
             batch_sample = 0
             x = []
             y = []
-                
+
             while batch_sample < batch_size and i < len(lines):
                 
                     
-                ls = lines[i].split('\t')   
+                ls = lines[i].split('\t')
                 y.append(self.ilabels[ls[1]])
-                sample = []
-                
-                for w in ls[2].split():
-                    sample.append(w)
+                sample = list(ls[2].split())
+
                 x.append(self._get_indexes(sample))
-                
+
                 batch_sample+=1
                 i+=1
-            
+
             x = np.array(x)
             y = keras.utils.to_categorical(y, num_classes = len(self.ilabels))
             if batch_size == 1:    
                 y.reshape(-1,batch_size,y.shape[1])
-            
+
             yield ([x],[y])
     
     
@@ -121,26 +119,24 @@ class ModelHP(object):
             batch_sample = 0
             x = []
             y = []
-                
+
             while batch_sample < batch_size:
                 
                 if i >= len(lines): 
                     i=0 #We prepare the indexes for the next iteration
-        
-                ls = lines[i].split('\t')   
+
+                ls = lines[i].split('\t')
                 y.append(self.ilabels[ls[1]])
-                sample = []
-                
-                for w in ls[2].split():
-                    sample.append(w)
+                sample = list(ls[2].split())
+
                 x.append(self._get_indexes(sample))
-                
+
                 batch_sample+=1
                 i+=1
-            
+
             x = np.array(x)
             y = keras.utils.to_categorical(y, num_classes = len(self.ilabels))
-            
+
             yield ([x],[y])
         
 
@@ -149,28 +145,29 @@ class ModelHP(object):
                         
         batch_size = int(train_conf[BATCH_SIZE])
         epochs = int(train_conf[EPOCHS])
-        
+
         save_model_path = train_conf[OUTPUT_DIR]+os.sep+name_model+".hdf5"
         save_callback = keras.callbacks.ModelCheckpoint(save_model_path, monitor='val_acc', verbose=0,
                                                         save_best_only=True, save_weights_only=False)
         early_stopping_cb = keras.callbacks.EarlyStopping(monitor='val_acc', min_delta=0, patience=2, verbose=0, mode='auto')
-        history = self.model.fit_generator(self.generate_data(training_data,batch_size),
-                                           steps_per_epoch = len(training_data)/(batch_size)+1,
-                                           epochs = epochs,
-                                           validation_data = self.generate_data(dev_data, batch_size),
-                                           validation_steps=len(dev_data)/(batch_size)+1,
-                                           callbacks = [save_callback,early_stopping_cb],
-                                           verbose=1)
-        
-        return history
+        return self.model.fit_generator(
+            self.generate_data(training_data, batch_size),
+            steps_per_epoch=len(training_data) / (batch_size) + 1,
+            epochs=epochs,
+            validation_data=self.generate_data(dev_data, batch_size),
+            validation_steps=len(dev_data) / (batch_size) + 1,
+            callbacks=[save_callback, early_stopping_cb],
+            verbose=1,
+        )
 
 
     def predict(self, test_data):
         
         batch_size = 128
-        output = self.model.predict_generator(generator = self.generate_data_test(test_data,batch_size), 
-                                            steps = (len(test_data)/(batch_size))+1 )   
-        return output
+        return self.model.predict_generator(
+            generator=self.generate_data_test(test_data, batch_size),
+            steps=(len(test_data) / (batch_size)) + 1,
+        )
 
 
 
@@ -583,22 +580,22 @@ class PerceptronHP(ModelHP):
         self.labelsi = {self.ilabels[l]: l for l in self.ilabels}
         self.iforms = {w:self.INIT_REAL_INDEX+i for i,w in enumerate(sorted(vocab))}
         input_iw = Input(shape=(len(self.iforms)+len(self.SPECIAL_INDEXES),), name="input", dtype='float32')
-        
+
         x = input_iw
-        for l in range(0,int(self.conf[LAYERS])):
+        for _ in range(int(self.conf[LAYERS])):
             x = Dense(int(self.conf[NEURONS]))(x)
-            x = Dropout(float(self.conf[DROPOUT]))(x)          
+            x = Dropout(float(self.conf[DROPOUT]))(x)
             x = Activation('relu')(x)
-    
-        x = Dense(self.n_labels)(x) 
+
+        x = Dense(self.n_labels)(x)
         output = Activation('softmax', name='output')(x)
-        
+
         model = Model(inputs = [input_iw], outputs = [output])
-              
+
         model.compile(loss="categorical_crossentropy",
                     optimizer="adam",#keras.optimizers.SGD(lr=0.01, momentum=0.0, decay=1e-6, nesterov=False),
                     metrics=['accuracy'])           
-        
+
         self.model = model
 
         self.options = options
@@ -729,15 +726,15 @@ class RNNHP(SequenceModelHP):
         self.ilabels ={l:i for i,l in enumerate(sorted(labels))}
         self.n_labels = len(self.ilabels)
         self.labelsi = {self.ilabels[l]: l for l in self.ilabels}
-        
+
         self.iforms = {w:self.INIT_REAL_INDEX+i for i,w in enumerate(sorted(vocab))}
         self.dims = int(self.conf[DIM_EMBEDDINGS])
-        self.w_lookup = np.zeros(shape=(len(vocab) + len(self.SPECIAL_INDEXES),self.dims))       
+        self.w_lookup = np.zeros(shape=(len(vocab) + len(self.SPECIAL_INDEXES),self.dims))
         self.ieforms, self.ew_lookup, self.edims = model_utils._read_embedding_file(self.conf[EXTERNAL_EMBEDDINGS])
-        
+
         self.iforms_reverse = {self.iforms[w]:w for w in self.iforms}
         self.ieforms_reverse = {self.ieforms[w]:w for w in self.ieforms}
-        
+
         self.sequence_length = int(self.conf[TIMESTEPS])
 
         input = Input(shape=(self.sequence_length,), dtype='float32')
@@ -756,26 +753,23 @@ class RNNHP(SequenceModelHP):
                                     input_length=self.sequence_length,
                                     name = "e_EW",
                                     trainable=True)(input_ext)
-        
+
         x = keras.layers.concatenate([embedding_layer, e_embedding_layer], axis=-1)
-        
+
         dr = float(self.conf[DROPOUT])
-        
-        for l in range(0,int(self.conf[LAYERS])):
-        
-            if l == len(range(0, int(self.conf[LAYERS]))):
-                sequences = True
-            else:
-                sequences = False      
+
+        for l in range(int(self.conf[LAYERS])):
+
+            sequences = l == len(range(int(self.conf[LAYERS])))
             x = SimpleRNN(int(self.conf[NEURONS]), return_sequences=sequences, dropout= dr)(x)
 
-        for l in range(0, int(self.conf[MLP_LAYERS])):
+        for _ in range(int(self.conf[MLP_LAYERS])):
             x = Dense(int(self.conf[MLP_NEURONS]))(x)
-            x = Dropout(float(self.conf[DROPOUT]))(x)  
+            x = Dropout(float(self.conf[DROPOUT]))(x)
             x = Activation('relu')(x)
-            
+
         preds = Dense(self.n_labels, activation='softmax')(x)
-        model = Model(inputs = [input,input_ext], outputs=[preds])        
+        model = Model(inputs = [input,input_ext], outputs=[preds])
         model.compile(loss='categorical_crossentropy',
                       optimizer='adam',
                       metrics=['accuracy'])
@@ -796,13 +790,13 @@ class LSTMHP(SequenceModelHP):
         self.ilabels ={l:i for i,l in enumerate(sorted(labels))}
         self.n_labels = len(self.ilabels)
         self.labelsi = {self.ilabels[l]: l for l in self.ilabels}
-        
+
         self.iforms = {w:self.INIT_REAL_INDEX+i for i,w in enumerate(sorted(vocab))}
         self.dims = int(self.conf[DIM_EMBEDDINGS])
         self.w_lookup = np.zeros(shape=(len(vocab) + len(self.SPECIAL_INDEXES),self.dims))  
-             
+
         self.ieforms, self.ew_lookup, self.edims = model_utils._read_embedding_file(self.conf[EXTERNAL_EMBEDDINGS])
-        
+
         self.iforms_reverse = {self.iforms[w]:w for w in self.iforms}
         self.ieforms_reverse = {self.ieforms[w]:w for w in self.ieforms}
         self.sequence_length = int(self.conf[TIMESTEPS])
@@ -823,32 +817,28 @@ class LSTMHP(SequenceModelHP):
                                     input_length=self.sequence_length,
                                     name = "e_EW",
                                     trainable=True)(input_ext)
-        
-        
+
+
         x = keras.layers.concatenate([embedding_layer, e_embedding_layer], axis=-1)
         bidirectional = self.conf[BIDIRECTIONAL].lower() == "true"
         dr = float(self.conf[DROPOUT])
-        
+
         for l in range(1,int(self.conf[LAYERS])+1):
-    
-            if l < int(self.conf[LAYERS]):
-                sequences = True
-            else:
-                sequences = False
-        
+
+            sequences = l < int(self.conf[LAYERS])
             if bidirectional:
                 x = Bidirectional(LSTM(int(self.conf[NEURONS]), dropout=dr, recurrent_dropout=dr,
                                        return_sequences=sequences))(x)
             else:
-             
+
                 x = LSTM(int(self.conf[NEURONS]), dropout=dr, #recurrent_dropout=dr,
                          return_sequences=sequences)(x)
-                
-        for l in range(0, int(self.conf[MLP_LAYERS])):
+
+        for _ in range(int(self.conf[MLP_LAYERS])):
             x = Dense(int(self.conf[MLP_NEURONS]))(x)
-            x = Dropout(float(self.conf[DROPOUT]))(x)  
+            x = Dropout(float(self.conf[DROPOUT]))(x)
             x = Activation('relu')(x)
-            
+
         preds = Dense(self.n_labels, activation='softmax')(x)
         model = Model(inputs = [input,input_ext], outputs=[preds])
         model.compile(loss='categorical_crossentropy',
@@ -857,7 +847,7 @@ class LSTMHP(SequenceModelHP):
 
         model.summary()
 
-        self.model = model        
+        self.model = model
         self.options = options
 
     
@@ -869,20 +859,20 @@ class CNNHP(SequenceModelHP):
         self.vocab = vocab
         self.name_classifier = "HP_CNN"
         self.conf = conf
-        
+
         self.ilabels ={l:i for i,l in enumerate(sorted(labels))}
         self.n_labels = len(self.ilabels)
         self.labelsi = {self.ilabels[l]: l for l in self.ilabels}
-        
+
         self.iforms = {w:self.INIT_REAL_INDEX+i for i,w in enumerate(sorted(vocab))}
         self.dims = int(self.conf[DIM_EMBEDDINGS])
         self.w_lookup = np.zeros(shape=(len(vocab) + len(self.SPECIAL_INDEXES),self.dims))       
-        
+
         self.ieforms, self.ew_lookup, self.edims = model_utils._read_embedding_file(self.conf[EXTERNAL_EMBEDDINGS])
-        
+
         self.iforms_reverse = {self.iforms[w]:w for w in self.iforms}
         self.ieforms_reverse = {self.ieforms[w]:w for w in self.ieforms}
-        
+
         self.sequence_length = int(self.conf[TIMESTEPS])
 
         input = Input(shape=(self.sequence_length,), dtype='float32')
@@ -895,16 +885,16 @@ class CNNHP(SequenceModelHP):
                                     input_length=self.sequence_length,
                                     name = "e_IW",
                                     trainable=True)(input)
-        
+
         e_embedding_layer = Embedding(self.ew_lookup.shape[0],
                                     self.edims,
                                     weights=[self.ew_lookup],
                                     input_length=self.sequence_length,
                                     name = "e_EW",
                                     trainable=True)(input_ext)
-        
+
         x = keras.layers.concatenate([embedding_layer, e_embedding_layer], axis=-1)
-        
+
 
         dr = float(self.conf[DROPOUT])
         filters = int(self.conf[FILTERS])
@@ -912,9 +902,8 @@ class CNNHP(SequenceModelHP):
 
         # we add a Convolution1D, which will learn filters
         # word group filters of size filter_length:
-        
-        for l in range(0, int(self.conf[LAYERS])):
-            
+
+        for _ in range(int(self.conf[LAYERS])):
             x =Conv1D(filters,
                       kernel_size,
                       padding='valid',
@@ -922,13 +911,13 @@ class CNNHP(SequenceModelHP):
                       strides=1)(x)
 
         x = GlobalMaxPooling1D()(x)
-        
-        
-        for l in range(0, int(self.conf[MLP_LAYERS])):
+
+
+        for _ in range(int(self.conf[MLP_LAYERS])):
             x = Dense(int(self.conf[MLP_NEURONS]))(x)
-            x = Dropout(float(self.conf[DROPOUT]))(x)  
+            x = Dropout(float(self.conf[DROPOUT]))(x)
             x = Activation('relu')(x)
-            
+
         preds = Dense(self.n_labels, activation='softmax')(x)
         model = Model(inputs = [input, input_ext], outputs=[preds])
         model.compile(loss='categorical_crossentropy',

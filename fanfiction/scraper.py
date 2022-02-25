@@ -51,7 +51,6 @@ class Scraper:
         html = result.content
         #print html 
         soup = BeautifulSoup(html, self.parser)
-
      #   print soup
         try:
             pre_story_links = soup.find(id='pre_story_links').find_all('a')
@@ -68,21 +67,6 @@ class Scraper:
             title = re.search(r"var title = (.*);", str(soup)).groups()[0];
             title = unquote_plus(title)[1:-1]
         metadata_div = soup.find(id='profile_top')
-#        times = metadata_div.find_all(attrs={'data-xutime':True})
-#        metadata_text = metadata_div.find(class_='xgray xcontrast_txt').text
-#        metadata_parts = metadata_text.split('-')
-#        genres = self.get_genres(metadata_parts[2].strip())
-        metadata = {
-            'id': story_id,
-#            'canon_type': pre_story_links[0].text,
-#            'canon': pre_story_links[1].text,
-            'author_id': author_id,
-            'title': title,
-#            'updated': int(times[0]['data-xutime']),
-#            'published': int(times[1]['data-xutime']),
-#            'lang': metadata_parts[1].strip(),
-#            'genres': genres
-        }
         """
         for parts in metadata_parts:
             parts = parts.strip()
@@ -101,25 +85,31 @@ class Scraper:
         if 'status' not in metadata:
             metadata['status'] = 'Incomplete'
         """
-        return metadata
+        return {
+            'id': story_id,
+#            'canon_type': pre_story_links[0].text,
+#            'canon': pre_story_links[1].text,
+            'author_id': author_id,
+            'title': title,
+#            'updated': int(times[0]['data-xutime']),
+#            'published': int(times[1]['data-xutime']),
+#            'lang': metadata_parts[1].strip(),
+#            'genres': genres
+        }
 
     def scrape_story(self, story_id, keep_html=False, num_chapters=None):
         metadata = self.scrape_story_metadata(story_id)
-        metadata ={}
-        metadata['chapters'] = {}
-        metadata['reviews'] = {}
-        
-        
+        metadata = {'chapters': {}, 'reviews': {}}
         if num_chapters is not None:
             num_chapters = num_chapters
         else:
-            num_chapters = metadata['num_chapters'] if 'num_chapters' in metadata else 1
+            num_chapters = metadata.get('num_chapters', 1)
         # rate limit to follow fanfiction.net TOS
         time.sleep(self.rate_limit)
         for chapter_id in range(1, num_chapters + 1):
             time.sleep(self.rate_limit)
             chapter = self.scrape_chapter(story_id, chapter_id)
-            
+
             if not chapter.endswith("\n") and chapter != "":
                 chapter = chapter+"\n"
       #      print chapter
@@ -182,10 +172,7 @@ class Scraper:
         reviews = []
         for review_td in reviews_tds:
             match = re.search(r'href="/u/(.*)/.*">.*</a>', str(review_td))
-            if match is not None:
-                user_id = int(match.groups()[0])
-            else:
-                user_id = None
+            user_id = int(match.groups()[0]) if match is not None else None
             time = review_td.find('span', attrs={'data-xutime':True})
             time = int(time['data-xutime'])
             review = {
