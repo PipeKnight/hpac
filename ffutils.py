@@ -146,8 +146,8 @@ class FanFictionHPSpellTokenizer(object):
             for mws in self.multiword_spells:
                 if mws in s: 
                     s = s.replace(mws,"_".join(mws.split(" ")))
-            
-        joined_sentences = " "+self.DUMMY_SEPARATOR+" ".join(sentences)        
+
+        joined_sentences = f" {self.DUMMY_SEPARATOR}" + " ".join(sentences)
         new_sentences = " ".join(self.toktok.tokenize(joined_sentences))
 
         return [s.split(" ") for s in new_sentences.split(self.DUMMY_SEPARATOR)]
@@ -155,17 +155,14 @@ class FanFictionHPSpellTokenizer(object):
      
     def _tokenize(self, text):
          
-        output = []
         sentences =  " ".join(self.sent_detector.tokenize(text.strip()))
-         
+
         for mws in self.multiword_spells:
             if mws in sentences: 
                 sentences = sentences.replace(mws,"_".join(mws.split(" ")))
-     
-        tokens = self.toktok.tokenize(sentences)  
-        output.append(tokens)
-            
-        return output
+
+        tokens = self.toktok.tokenize(sentences)
+        return [tokens]
     
     
     def is_spell(self,token):
@@ -271,7 +268,7 @@ class SimpleHPSpellsInvertedIndex(object):
         
         self.window_size = window
         spell_sentences = []
-        
+
         spell_occ = []
         for spell in self.index:
             for fid in self.index[spell]:
@@ -279,12 +276,12 @@ class SimpleHPSpellsInvertedIndex(object):
                 fid_name,fid_sid,fid_tid = fid_split[0], fid_split[1], fid_split[2]                             
                 spell_occ.append((fid,spell))
 
-        ff_files = set([file_name for file_name in  os.listdir(path_stories_tok)])
+        ff_files = set(list(os.listdir(path_stories_tok)))
         for (fid, spell) in tqdm(spell_occ):
             fid_split = fid.split(".")     
             fid_name,fid_sid,fid_tid = fid_split[0], int(fid_split[1]), int(fid_split[2])
-                
-            
+
+
             with codecs.open(path_stories_tok+os.sep+fid_name, encoding="utf-8") as f:
                 content = [f.read().split(" ")]
             sample = self._get_sample_as_window_size(content,int(fid_sid),
@@ -292,14 +289,14 @@ class SimpleHPSpellsInvertedIndex(object):
 
 
             spell_sentences.append((fid, spell.upper(), sample))
-            
+
         return spell_sentences
     
 
 
     def _get_sample_as_window_size(self,sentences, sid, tid):
         if tid-self.window_size < 0:
-            return " ".join(sentences[sid][0:tid])
+            return " ".join(sentences[sid][:tid])
         else:
             return " ".join(sentences[sid][(tid-self.window_size):tid])
 

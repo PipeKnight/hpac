@@ -10,12 +10,12 @@ def write_split_fullids(split_samples, index_samples, name_split):
     with codecs.open(args.output+os.sep+name_split,"w", encoding="utf-8") as f_split:
         found = False
         for hpac_sample_id in tqdm(split_samples):
-            for idx_sample,sample in enumerate(index_samples):
+            for sample in index_samples:
                 if hpac_sample_id == sample[0]:
                     found=True
                     f_split.write("\t".join(sample)+"\n")          
                     break
-                
+
             if not found:
                 print("Sample not found", hpac_sample)
                 exit()
